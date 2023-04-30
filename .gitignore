@@ -1,0 +1,3 @@
+# local, personal configurations that may contain passwords
+.env
+vpn.env

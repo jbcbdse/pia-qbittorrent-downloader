@@ -1,0 +1,52 @@
+services:
+  vpn:
+    image: thrnz/docker-wireguard-pia:latest
+    volumes:
+      - pia:/pia
+      - pia-shared:/pia-shared
+      - qbittorrent-config:/qbittorrent-config
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    env_file:
+      - vpn.env
+    ports:
+      - 8112:8112
+    sysctls:
+      # comments from here https://github.com/thrnz/docker-wireguard-pia/blob/master/docker-compose.yml
+      # wg-quick fails to set this without --privileged, so set it here instead if needed
+      - net.ipv4.conf.all.src_valid_mark=1
+      # May as well disable ipv6. Should be blocked anyway.
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    healthcheck:
+      test: ping -c 1 www.google.com || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - WEBUI_PORT=8112
+    volumes:
+      - qbittorrent-config:/config
+      - network-drive:/downloads
+      - pia-shared:/pia-shared
+      - ./user-scripts:/custom-cont-init.d:ro
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+volumes:
+  pia:
+  pia-shared:
+  network-drive:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: user=,password=,rw,noperm,uid=1000,gid=1000
+      device: $NETWORK_DOWNLOAD_PATH
+  qbittorrent-config:
